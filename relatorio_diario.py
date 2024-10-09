@@ -5,6 +5,8 @@ import openpyxl
 import numpy as np
 from fpdf import FPDF
 from matplotlib.dates import DateFormatter
+import matplotlib.dates as mdates
+
 
 # Estilizar botões usando CSS
 st.markdown("""
@@ -127,22 +129,24 @@ def gerar_graficos_e_relatorio(df_Geral):
             # Cálculo da média móvel simples com janela de 7 dias
             rolling_average = pd.Series(values).rolling(window=7, min_periods=1).mean()
 
+            # Exibir a partir do 7º ponto
+            if len(dates) >= 7:
+                dates = dates[6:]  # Começa do 7º dia
+                rolling_average = rolling_average.iloc[6:]  # Use iloc para acessar as linhas corretamente
+
             # Usando cores diferentes para cada linha de página
-            ax.plot(dates[::7], rolling_average[::7], label=f'{pagina}', linewidth=2,
-                    color=colors[i % len(colors)])  # Modificado para exibir a cada 7 dias
+            ax.plot(dates[::7], rolling_average[::7], label=f'{pagina}', linewidth=2, color=colors[i % len(colors)])
 
             # Adicionando etiquetas de texto para todas as médias a cada 7 dias
-            for j in range(len(rolling_average)):
-                if j % 7 == 0:  # Exibir apenas a cada 7 dias
-                    # Ajuste a posição vertical das etiquetas apenas para Zap e Viva
-                    if pagina in ['Zap', 'Viva']:
-                        ax.text(dates[j], rolling_average[j] + 0.1, f'{int(rolling_average[j])}', fontsize=8,
-                                ha='center',
-                                va='bottom', color=colors[i % len(colors)])  # Ajuste na posição
-                    else:
-                        ax.text(dates[j], rolling_average[j] + 1, f'{int(rolling_average[j])}', fontsize=8, ha='center',
-                                va='bottom',
-                                color=colors[i % len(colors)])  # Manter posição original para outras páginas
+            for j in range(0, len(rolling_average), 7):  # Exibir apenas a cada 7 dias
+                # Ajuste a posição vertical das etiquetas apenas para Zap e Viva
+                if pagina in ['Zap', 'Viva']:
+                    ax.text(dates[j], rolling_average.iloc[j] + 0.1, f'{int(rolling_average.iloc[j])}', fontsize=8,
+                            ha='center', va='bottom', color=colors[i % len(colors)])
+                else:
+                    ax.text(dates[j], rolling_average.iloc[j] + 1, f'{int(rolling_average.iloc[j])}', fontsize=8,
+                            ha='center',
+                            va='bottom', color=colors[i % len(colors)])
 
             if rolling_average.max() > max_y_value:
                 max_y_value = rolling_average.max()
@@ -152,8 +156,8 @@ def gerar_graficos_e_relatorio(df_Geral):
             ax.set_ylim(0, ylim_upper)
 
         ax.legend(loc='upper right', fontsize=8, framealpha=0.6)
+        ax.xaxis.set_major_locator(mdates.DayLocator(interval=5))
         ax.xaxis.set_major_formatter(DateFormatter('%d/%m'))
-        ax.tick_params(axis='both', which='major', labelsize=10)
 
         plt.tight_layout()
         return fig  # Retorna a figura criada

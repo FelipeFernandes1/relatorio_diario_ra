@@ -112,8 +112,8 @@ def gerar_graficos_e_relatorio(df_Geral):
             rolling_average = pd.Series(values).rolling(window=7, min_periods=1).mean()
 
             # Usando cores diferentes para cada linha de página
-            ax.plot(dates[:len(rolling_average)], rolling_average, label=f'{pagina}', linewidth=2,
-                    color=colors[i % len(colors)])
+            ax.plot(dates[::7], rolling_average[::7], label=f'{pagina}', linewidth=2,
+                    color=colors[i % len(colors)])  # Modificado para exibir a cada 7 dias
 
             # Adicionando etiquetas de texto apenas para médias acima de 5 a cada 7 dias
             for j in range(len(rolling_average)):

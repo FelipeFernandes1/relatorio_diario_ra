@@ -110,7 +110,7 @@ def gerar_graficos_e_relatorio(df_Geral):
     fig_pendentes_zv = plot_pending_cases(df_Geral, paginas_zv)
     st.pyplot(fig_pendentes_zv)  # Passa a figura gerada
 
-    # Função para gerar gráfico de média móvel simples (período de 7 dias) com cores diferentes para cada página
+    # Função para gerar gráfico de média móvel simples com diferentes janelas para cada página
     def plot_cumulative_daily_average(df, paginas):
         fig, ax = plt.subplots(figsize=(9, 4))
         max_y_value = 0
@@ -126,27 +126,28 @@ def gerar_graficos_e_relatorio(df_Geral):
             if len(values) == 0:
                 continue
 
-            # Cálculo da média móvel simples com janela de 7 dias
-            rolling_average = pd.Series(values).rolling(window=7, min_periods=1).mean()
+            rolling_window = 7 #7 dias de janela
+            rolling_average = pd.Series(values).rolling(window=rolling_window, min_periods=1).sum()
 
-            # Exibir a partir do 7º ponto
-            if len(dates) >= 7:
-                dates = dates[6:]  # Começa do 7º dia
-                rolling_average = rolling_average.iloc[6:]  # Use iloc para acessar as linhas corretamente
+            # Exibir a partir do ponto correspondente à janela
+            if len(dates) >= rolling_window:
+                dates = dates[rolling_window - 1:]  # Começa no ponto da janela
+                rolling_average = rolling_average.iloc[
+                                  rolling_window - 1:]  # Use iloc para acessar as linhas corretamente
 
             # Usando cores diferentes para cada linha de página
-            ax.plot(dates[::7], rolling_average[::7], label=f'{pagina}', linewidth=2, color=colors[i % len(colors)])
+            ax.plot(dates[::rolling_window], rolling_average[::rolling_window], label=f'{pagina}', linewidth=2,
+                    color=colors[i % len(colors)])
 
-            # Adicionando etiquetas de texto para todas as médias a cada 7 dias
-            for j in range(0, len(rolling_average), 7):  # Exibir apenas a cada 7 dias
+            # Adicionando etiquetas de texto para todas as médias a cada 'rolling_window' dias
+            for j in range(0, len(rolling_average), rolling_window):
                 # Ajuste a posição vertical das etiquetas apenas para Zap e Viva
                 if pagina in ['Zap', 'Viva']:
-                    ax.text(dates[j], rolling_average.iloc[j] + 0.1, f'{int(rolling_average.iloc[j])}', fontsize=8,
+                    ax.text(dates[j], rolling_average.iloc[j] + 0.5, f'{int(rolling_average.iloc[j])}', fontsize=8,
                             ha='center', va='bottom', color=colors[i % len(colors)])
                 else:
-                    ax.text(dates[j], rolling_average.iloc[j] + 1, f'{int(rolling_average.iloc[j])}', fontsize=8,
-                            ha='center',
-                            va='bottom', color=colors[i % len(colors)])
+                    ax.text(dates[j], rolling_average.iloc[j] + 5, f'{int(rolling_average.iloc[j])}', fontsize=8,
+                            ha='center', va='bottom', color=colors[i % len(colors)])
 
             if rolling_average.max() > max_y_value:
                 max_y_value = rolling_average.max()
@@ -184,12 +185,12 @@ def gerar_graficos_e_relatorio(df_Geral):
     st.markdown("<hr style='border: 2px solid #4d4d4d;'>", unsafe_allow_html=True)
 
     # Gráficos para Incoming - média móvel
-    st.subheader("Incoming - média móvel janela de 7 dias - Pay e Classificados")
+    st.subheader("Incoming - janela de 7 dias - Pay e Classificados")
     paginas_pc = ['Pay', 'Classificados']
     fig_acumulada_pc = plot_cumulative_daily_average(df_Geral, paginas_pc)
     st.pyplot(fig_acumulada_pc)  # Passa a figura gerada
 
-    st.subheader("Incoming - média móvel janela de 7 dias - Zap e Viva")
+    st.subheader("Incoming - janela de 7 dias - Zap e Viva")
     paginas_zv = ['Zap', 'Viva']
     fig_acumulada_zv = plot_cumulative_daily_average(df_Geral, paginas_zv)
     st.pyplot(fig_acumulada_zv)  # Passa a figura gerada
@@ -242,4 +243,3 @@ if df_Viva is not None:
 
 if not df_Geral.empty:
     gerar_graficos_e_relatorio(df_Geral)
-

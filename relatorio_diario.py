@@ -77,20 +77,36 @@ def gerar_graficos_e_relatorio(df_Geral):
         df_pending_sorted = df_pending.sort_values(by='Total', ascending=True)
         colors = ['#808080', '#ec7b20']
         fig, ax = plt.subplots(figsize=(9, 2))
-        bars = df_pending_sorted[['Atribuído', 'Sem atribuição']].plot(kind='barh', stacked=True, ax=ax, width=0.9,                                                                       color=colors)
+        bars = df_pending_sorted[['Atribuído', 'Sem atribuição']].plot(kind='barh', stacked=True, ax=ax, width=0.9,
+                                                                       color=colors)
         ax.tick_params(axis='x', labelsize=10)
         ax.tick_params(axis='y', labelsize=10)
         ax.set_ylabel('')
+
         for i, (sem_atribuicao, atribuido) in enumerate(
                 zip(df_pending_sorted['Sem atribuição'], df_pending_sorted['Atribuído'])):
             total = sem_atribuicao + atribuido
-            if total >= 15:
+            if total >= 0:
                 ax.annotate(f'{atribuido}', xy=(atribuido, i), xytext=(-10, 0), textcoords='offset points', ha='center',
                             va='center', fontsize=10, color='white')
-                ax.annotate(f'{sem_atribuicao}', xy=(atribuido + sem_atribuicao, i), xytext=(-10, 0),
+                ax.annotate(f'{sem_atribuicao}', xy=(atribuido + sem_atribuicao, i), xytext=(10, 0),
                             textcoords='offset points', ha='center', va='center', fontsize=10, color='black')
         plt.tight_layout()
         return fig  # Retorna a figura criada
+
+    paginas = ['Pay', 'Classificados', 'Zap', 'Viva']  # Adicione mais páginas conforme necessário
+
+    # Gráficos para Pay e Classificados
+    st.subheader("Casos pendentes de resposta pública - Pay e Classificados")
+    paginas_pc = ['Pay', 'Classificados']
+    fig_pendentes_pc = plot_pending_cases(df_Geral, paginas_pc)
+    st.pyplot(fig_pendentes_pc)  # Passa a figura gerada
+
+    # Gráficos para Zap e Viva
+    st.subheader("Casos pendentes de resposta pública - Zap e Viva")
+    paginas_zv = ['Zap', 'Viva']
+    fig_pendentes_zv = plot_pending_cases(df_Geral, paginas_zv)
+    st.pyplot(fig_pendentes_zv)  # Passa a figura gerada
 
     # Função para gerar gráfico de média móvel simples (período de 7 dias) com cores diferentes para cada página
     def plot_cumulative_daily_average(df, paginas):
@@ -115,11 +131,18 @@ def gerar_graficos_e_relatorio(df_Geral):
             ax.plot(dates[::7], rolling_average[::7], label=f'{pagina}', linewidth=2,
                     color=colors[i % len(colors)])  # Modificado para exibir a cada 7 dias
 
-            # Adicionando etiquetas de texto apenas para médias acima de 5 a cada 7 dias
+            # Adicionando etiquetas de texto para todas as médias a cada 7 dias
             for j in range(len(rolling_average)):
-                if j % 7 == 0 and rolling_average[j] >= 5:  # Exibir apenas a cada 7 dias
-                    ax.text(dates[j], rolling_average[j] + 1, f'{int(rolling_average[j])}', fontsize=8, ha='center',
-                            va='bottom', color=colors[i % len(colors)])
+                if j % 7 == 0:  # Exibir apenas a cada 7 dias
+                    # Ajuste a posição vertical das etiquetas apenas para Zap e Viva
+                    if pagina in ['Zap', 'Viva']:
+                        ax.text(dates[j], rolling_average[j] + 0.1, f'{int(rolling_average[j])}', fontsize=8,
+                                ha='center',
+                                va='bottom', color=colors[i % len(colors)])  # Ajuste na posição
+                    else:
+                        ax.text(dates[j], rolling_average[j] + 1, f'{int(rolling_average[j])}', fontsize=8, ha='center',
+                                va='bottom',
+                                color=colors[i % len(colors)])  # Manter posição original para outras páginas
 
             if rolling_average.max() > max_y_value:
                 max_y_value = rolling_average.max()
@@ -139,22 +162,16 @@ def gerar_graficos_e_relatorio(df_Geral):
     def show_latest_pending_dates(df):
         last_dates_attributed = df[(df['Status Hugme'] == 'Novo') & (df['Status'] == 'Atribuído')]
         last_date_attributed = last_dates_attributed.groupby('Página')['Data Reclamação'].min().reset_index()
-        last_date_attributed.rename(columns={'Data Reclamação': 'Última Data Atribuída'}, inplace=True)
+        last_date_attributed.rename(columns={'Data Reclamação': 'Atribuído'}, inplace=True)
         last_dates_unattributed = df[(df['Status Hugme'] == 'Novo') & (df['Status'] == 'Sem atribuição')]
         last_date_unattributed = last_dates_unattributed.groupby('Página')['Data Reclamação'].min().reset_index()
-        last_date_unattributed.rename(columns={'Data Reclamação': 'Última Data Sem Atribuição'}, inplace=True)
+        last_date_unattributed.rename(columns={'Data Reclamação': 'Sem Atribuição'}, inplace=True)
         last_dates = pd.merge(last_date_attributed, last_date_unattributed, on='Página', how='outer')
         # Formatar as colunas de datas para o formato dia/mês/ano
-        last_dates['Última Data Atribuída'] = last_dates['Última Data Atribuída'].dt.strftime('%d/%m/%Y')
-        last_dates['Última Data Sem Atribuição'] = last_dates['Última Data Sem Atribuição'].dt.strftime('%d/%m/%Y')
-        st.markdown("<h3 style='font-size:18px;'>Últimas datas</h3>", unsafe_allow_html=True)
+        last_dates['Atribuído'] = last_dates['Atribuído'].dt.strftime('%d/%m/%Y')
+        last_dates['Sem Atribuição'] = last_dates['Sem Atribuição'].dt.strftime('%d/%m/%Y')
+        st.markdown("<h3 style='font-size:18px;'>Casos pendentes mais antigos</h3>", unsafe_allow_html=True)
         st.table(last_dates)
-
-    # Gráficos
-    st.subheader("Casos pendentes de resposta pública")
-    paginas = ['Pay', 'Classificados', 'Zap', 'Viva']
-    fig_pendentes = plot_pending_cases(df_Geral, paginas)
-    st.pyplot(fig_pendentes)  # Passa a figura gerada
 
     # Exibir a tabela de últimas datas dos casos pendentes
     show_latest_pending_dates(df_Geral)
@@ -162,9 +179,16 @@ def gerar_graficos_e_relatorio(df_Geral):
     # Linha horizontal para separar as seções
     st.markdown("<hr style='border: 2px solid #4d4d4d;'>", unsafe_allow_html=True)
 
-    st.subheader("Incoming - média móvel janela de 7 dias")
-    fig_acumulada = plot_cumulative_daily_average(df_Geral, paginas)
-    st.pyplot(fig_acumulada)  # Passa a figura gerada
+    # Gráficos para Incoming - média móvel
+    st.subheader("Incoming - média móvel janela de 7 dias - Pay e Classificados")
+    paginas_pc = ['Pay', 'Classificados']
+    fig_acumulada_pc = plot_cumulative_daily_average(df_Geral, paginas_pc)
+    st.pyplot(fig_acumulada_pc)  # Passa a figura gerada
+
+    st.subheader("Incoming - média móvel janela de 7 dias - Zap e Viva")
+    paginas_zv = ['Zap', 'Viva']
+    fig_acumulada_zv = plot_cumulative_daily_average(df_Geral, paginas_zv)
+    st.pyplot(fig_acumulada_zv)  # Passa a figura gerada
 
 # Interface principal
 st.title("Relatório Diário RA")

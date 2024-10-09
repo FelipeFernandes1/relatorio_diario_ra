@@ -157,7 +157,7 @@ def gerar_graficos_e_relatorio(df_Geral):
             ax.set_ylim(0, ylim_upper)
 
         ax.legend(loc='upper right', fontsize=8, framealpha=0.6)
-        ax.xaxis.set_major_locator(mdates.DayLocator(interval=5))
+        ax.xaxis.set_major_locator(mdates.MonthLocator())
         ax.xaxis.set_major_formatter(DateFormatter('%d/%m'))
 
         plt.tight_layout()

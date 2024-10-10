@@ -51,6 +51,9 @@ def gerar_graficos_e_relatorio(df_Geral):
     df_Geral['Atribuido Para'].fillna('Sem atribuição', inplace=True)
     df_Geral['Atribuido Para'] = df_Geral['Atribuido Para'].apply(lambda x: 'Atribuído' if x != 'Sem atribuição' else x)
     df_Geral.rename(columns={'Atribuido Para': 'Status'}, inplace=True)
+    df_Geral = df_Geral.loc[~((df_Geral['Moderação motivo'] == 'A reclamação de outra empresa') & (
+    df_Geral['Moderação status'] == 'Pendente'))]
+    df_Geral.reset_index(inplace=True, drop=True)
 
     # Calcular o intervalo de datas
     data_minima = df_Geral['Data Reclamação'].min().strftime('%d/%m/%Y')
@@ -110,55 +113,64 @@ def gerar_graficos_e_relatorio(df_Geral):
     fig_pendentes_zv = plot_pending_cases(df_Geral, paginas_zv)
     st.pyplot(fig_pendentes_zv)  # Passa a figura gerada
 
-    # Função para gerar gráfico de média móvel simples com diferentes janelas para cada página
-    def plot_cumulative_daily_average(df, paginas):
+    # Função para plotar o gráfico de contagem semanal para páginas específicas, com linhas roxa e laranja
+    def plot_total_por_semana(dataframe, paginas, y_lim_factor=1.2):
+        """
+        Plota o total de reclamações por semana para as páginas selecionadas.
+
+        Args:
+            dataframe (pd.DataFrame): O DataFrame contendo os dados.
+            paginas (list): Lista de páginas a serem plotadas.
+            y_lim_factor (float): Fator para aumentar o limite do eixo Y (padrão 1.2 para 20% a mais).
+        """
+        # Converte a coluna "Data Reclamação" para o tipo datetime
+        dataframe['Data Reclamação'] = pd.to_datetime(dataframe['Data Reclamação'])
+
+        # Define o domingo como início da semana (freq='W-SUN')
+        dataframe['Semana'] = dataframe['Data Reclamação'].dt.to_period('W-SUN').apply(lambda r: r.end_time)
+
+        # Iniciando o gráfico
         fig, ax = plt.subplots(figsize=(9, 4))
-        max_y_value = 0
 
-        # Definindo uma paleta de cores para as páginas
-        colors = ['#5800d9', '#ff5733', '#33c1ff', '#85e033']  # Você pode adicionar mais cores aqui
+        # Variável para armazenar o valor máximo das contagens
+        max_valor = 0
 
-        for i, pagina in enumerate(paginas):
-            df_pagina = df[df['Página'] == pagina].set_index('Data Reclamação').resample('D').size()
-            dates = df_pagina.index
-            values = df_pagina.values
+        # Lista de cores fixas: roxa e laranja
+        cores = ['#5800d9', '#ff5733']
 
-            if len(values) == 0:
-                continue
+        # Itera sobre cada página selecionada e plota uma linha separada para cada uma
+        for idx, pagina in enumerate(paginas):
+            df_filtrado = dataframe[dataframe['Página'] == pagina]
 
-            rolling_window = 7 #7 dias de janela
-            rolling_average = pd.Series(values).rolling(window=rolling_window, min_periods=1).sum()
+            # Conta o número de reclamações por semana para a página selecionada
+            contagem_semanal = df_filtrado.groupby('Semana').size()
 
-            # Exibir a partir do ponto correspondente à janela
-            if len(dates) >= rolling_window:
-                dates = dates[rolling_window - 1:]  # Começa no ponto da janela
-                rolling_average = rolling_average.iloc[
-                                  rolling_window - 1:]  # Use iloc para acessar as linhas corretamente
+            # Atualiza o valor máximo para definir o limite do eixo Y
+            max_valor = max(max_valor, contagem_semanal.max())
 
-            # Usando cores diferentes para cada linha de página
-            ax.plot(dates[::rolling_window], rolling_average[::rolling_window], label=f'{pagina}', linewidth=2,
-                    color=colors[i % len(colors)])
+            # Plota a linha para a página atual
+            plt.plot(contagem_semanal.index, contagem_semanal.values, marker='o', label=pagina, color=cores[idx])
 
-            # Adicionando etiquetas de texto para todas as médias a cada 'rolling_window' dias
-            for j in range(0, len(rolling_average), rolling_window):
-                # Ajuste a posição vertical das etiquetas apenas para Zap e Viva
-                if pagina in ['Zap', 'Viva']:
-                    ax.text(dates[j], rolling_average.iloc[j] + 0.5, f'{int(rolling_average.iloc[j])}', fontsize=8,
-                            ha='center', va='bottom', color=colors[i % len(colors)])
-                else:
-                    ax.text(dates[j], rolling_average.iloc[j] + 5, f'{int(rolling_average.iloc[j])}', fontsize=8,
-                            ha='center', va='bottom', color=colors[i % len(colors)])
+            # Adiciona os valores totais em cada ponto da linha
+            for i, valor in enumerate(contagem_semanal.values):
+                plt.text(contagem_semanal.index[i], valor, str(valor), ha='center', va='bottom', fontsize=10)
 
-            if rolling_average.max() > max_y_value:
-                max_y_value = rolling_average.max()
+        # Definindo o eixo X com os domingos no formato dia/mês
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%d/%m'))
+        plt.xticks(rotation=45)
 
-        if max_y_value > 0:  # Configurar para não exibir linha abaixo de determinada média
-            ylim_upper = max_y_value * 1.4
-            ax.set_ylim(0, ylim_upper)
+        # Definindo o eixo X com os domingos
+        plt.xticks(contagem_semanal.index, contagem_semanal.index.date, rotation=45)
 
-        ax.legend(loc='upper right', fontsize=8, framealpha=0.6)
-        ax.xaxis.set_major_locator(mdates.MonthLocator())
-        ax.xaxis.set_major_formatter(DateFormatter('%d/%m'))
+        # Ajustando o limite do eixo Y com o fator fornecido
+        plt.ylim(0, max_valor * y_lim_factor)
+
+        # Adicionando legenda para identificar as páginas
+        plt.legend()
+
+        # Títulos e rótulos
+        #plt.title(f'Total de Casos por Semana - Páginas: {", ".join(paginas)}')
+        plt.xlabel('Contagem até o final do domingo')
 
         plt.tight_layout()
         return fig  # Retorna a figura criada
@@ -185,14 +197,12 @@ def gerar_graficos_e_relatorio(df_Geral):
     st.markdown("<hr style='border: 2px solid #4d4d4d;'>", unsafe_allow_html=True)
 
     # Gráficos para Incoming - média móvel
-    st.subheader("Incoming - janela de 7 dias - Pay e Classificados")
-    paginas_pc = ['Pay', 'Classificados']
-    fig_acumulada_pc = plot_cumulative_daily_average(df_Geral, paginas_pc)
+    st.subheader("Incoming Semanal - Pay e Classificados")
+    fig_acumulada_pc = plot_total_por_semana(df_Geral, ['Classificados', 'Pay'], y_lim_factor=1.2)
     st.pyplot(fig_acumulada_pc)  # Passa a figura gerada
 
-    st.subheader("Incoming - janela de 7 dias - Zap e Viva")
-    paginas_zv = ['Zap', 'Viva']
-    fig_acumulada_zv = plot_cumulative_daily_average(df_Geral, paginas_zv)
+    st.subheader("Incoming Semanal - Zap e Viva")
+    fig_acumulada_zv = plot_total_por_semana(df_Geral, ['Zap', 'Viva'], y_lim_factor=1.2)
     st.pyplot(fig_acumulada_zv)  # Passa a figura gerada
 
 # Interface principal
@@ -207,39 +217,25 @@ df_Classificados = verificar_upload("Classificados")
 if df_Classificados is not None:
     df_Classificados['Página'] = 'Classificados'
     df_Geral = pd.concat([df_Geral, df_Classificados], ignore_index=True)
-    # excluindo as reclamações a serem moderadas p página correta
-    df_Geral = df_Geral.loc[~((df_Geral['Moderação motivo'] == 'A reclamação de outra empresa') & (
-    df_Geral['Moderação status'] == 'Pendente'))]
-    df_Geral.reset_index(inplace=True, drop=True)
+
 
 df_Pay = verificar_upload("Pay")
 if df_Pay is not None:
     df_Pay['Página'] = 'Pay'
     df_Geral = pd.concat([df_Geral, df_Pay], ignore_index=True)
-    # tratando os valores de data
-    #df_Geral['Data Reclamação'] = df_Geral['Data Reclamação'].dt.date
-    # excluindo as reclamações a serem moderadas p página correta
-    df_Geral = df_Geral.loc[~((df_Geral['Moderação motivo'] == 'A reclamação de outra empresa') & (
-    df_Geral['Moderação status'] == 'Pendente'))]
-    df_Geral.reset_index(inplace=True, drop=True)
+
 
 df_Zap = verificar_upload("Zap")
 if df_Zap is not None:
     df_Zap['Página'] = 'Zap'
     df_Geral = pd.concat([df_Geral, df_Zap], ignore_index=True)
-    # excluindo as reclamações a serem moderadas p página correta
-    df_Geral = df_Geral.loc[~((df_Geral['Moderação motivo'] == 'A reclamação de outra empresa') & (
-    df_Geral['Moderação status'] == 'Pendente'))]
-    df_Geral.reset_index(inplace=True, drop=True)
+
 
 df_Viva = verificar_upload("Viva")
 if df_Viva is not None:
     df_Viva['Página'] = 'Viva'
     df_Geral = pd.concat([df_Geral, df_Viva], ignore_index=True)
-    # excluindo as reclamações a serem moderadas p página correta
-    df_Geral = df_Geral.loc[~((df_Geral['Moderação motivo'] == 'A reclamação de outra empresa') & (
-    df_Geral['Moderação status'] == 'Pendente'))]
-    df_Geral.reset_index(inplace=True, drop=True)
+
 
 if not df_Geral.empty:
     gerar_graficos_e_relatorio(df_Geral)

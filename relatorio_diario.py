@@ -53,6 +53,8 @@ def gerar_graficos_e_relatorio(df_Geral):
     df_Geral.rename(columns={'Atribuido Para': 'Status'}, inplace=True)
     df_Geral = df_Geral.loc[~((df_Geral['Moderação motivo'] == 'A reclamação de outra empresa') & (
     df_Geral['Moderação status'] == 'Pendente'))]
+    df_Geral = df_Geral.loc[~((df_Geral['Moderação motivo'] == 'Reclamação em Duplicidade') & (
+    df_Geral['Moderação status'] == 'Pendente'))]
     df_Geral.reset_index(inplace=True, drop=True)
 
     # Calcular o intervalo de datas
